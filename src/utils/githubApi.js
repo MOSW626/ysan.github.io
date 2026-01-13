@@ -1,4 +1,6 @@
 // GitHub API를 사용하여 프로젝트 정보 가져오기
+import { githubProjectDescriptions } from '../data/githubProjects';
+
 export const fetchGitHubRepos = async (username = 'MOSW626') => {
   try {
     const response = await fetch(`https://api.github.com/users/${username}/repos?sort=updated&per_page=20&type=all`);
@@ -27,8 +29,9 @@ export const fetchGitHubRepos = async (username = 'MOSW626') => {
     // 저장소 내용 분석하여 간단한 요약 생성
     const reposWithDetails = await Promise.all(
       repos.slice(0, 10).map(async (repo) => {
-        let summary = repo.description;
-        
+        // 수동으로 추가한 설명이 있으면 우선 사용
+        let summary = githubProjectDescriptions[repo.name] || repo.description;
+
         // description이 없거나 너무 짧으면 저장소 내용 분석
         if (!summary || summary.length < 10) {
           try {
@@ -38,11 +41,11 @@ export const fetchGitHubRepos = async (username = 'MOSW626') => {
                 'Accept': 'application/vnd.github.v3+json'
               }
             });
-            
+
             if (contentsResponse.ok) {
               const contents = await contentsResponse.json();
               const fileNames = contents.map(item => item.name.toLowerCase());
-              
+
               // 주요 설정 파일 분석
               const analysis = {
                 isWeb: fileNames.includes('package.json') || fileNames.includes('index.html') || fileNames.includes('app.py'),
@@ -55,10 +58,10 @@ export const fetchGitHubRepos = async (username = 'MOSW626') => {
                 hasDocker: fileNames.includes('dockerfile') || fileNames.includes('docker-compose.yml'),
                 hasReadme: fileNames.includes('readme.md') || fileNames.includes('readme.rst'),
               };
-              
+
               // 프로젝트 타입 판단
               const parts = [];
-              
+
               if (analysis.isWeb) {
                 if (fileNames.includes('package.json')) {
                   parts.push('웹 애플리케이션');
@@ -86,29 +89,29 @@ export const fetchGitHubRepos = async (username = 'MOSW626') => {
               } else if (analysis.isRust) {
                 parts.push('Rust 프로젝트');
               }
-              
+
               // 언어 정보 추가
               if (repo.language && !parts.includes(repo.language + ' 프로젝트')) {
                 if (parts.length === 0) {
                   parts.push(`${repo.language} 프로젝트`);
                 }
               }
-              
+
               // Topics 정보 활용
               if (repo.topics && repo.topics.length > 0) {
-                const relevantTopics = repo.topics.filter(t => 
+                const relevantTopics = repo.topics.filter(t =>
                   !['config', 'github-config', 'template', 'starter', 'hacktoberfest'].includes(t.toLowerCase())
                 );
                 if (relevantTopics.length > 0 && parts.length === 0) {
                   parts.push(relevantTopics[0] + ' 프로젝트');
                 }
               }
-              
+
               // Docker 사용 여부
               if (analysis.hasDocker) {
                 parts.push('(Docker 지원)');
               }
-              
+
               // 최종 요약 생성
               if (parts.length > 0) {
                 summary = parts.join(' ') + '입니다.';
@@ -122,10 +125,10 @@ export const fetchGitHubRepos = async (username = 'MOSW626') => {
             if (repo.language) {
               summary = `${repo.language}로 개발된 프로젝트입니다.`;
             } else if (repo.topics && repo.topics.length > 0) {
-              const relevantTopics = repo.topics.filter(t => 
+              const relevantTopics = repo.topics.filter(t =>
                 !['config', 'github-config'].includes(t.toLowerCase())
               );
-              summary = relevantTopics.length > 0 
+              summary = relevantTopics.length > 0
                 ? `${relevantTopics[0]} 프로젝트입니다.`
                 : '프로젝트입니다.';
             } else {
@@ -133,7 +136,7 @@ export const fetchGitHubRepos = async (username = 'MOSW626') => {
             }
           }
         }
-        
+
         // 깨진 텍스트 감지 및 정리
         const isCorrupted = (text) => {
           if (!text || text.length < 5) return false;
@@ -144,14 +147,14 @@ export const fetchGitHubRepos = async (username = 'MOSW626') => {
           }
           return corruptedPattern.test(text) && corruptedChars && corruptedChars.length > 3;
         };
-        
+
         // 깨진 텍스트면 재생성
         if (isCorrupted(summary)) {
           // 깨진 텍스트는 저장소 정보로 재생성
           const parts = [];
           if (repo.language) parts.push(`${repo.language} 프로젝트`);
           if (repo.topics && repo.topics.length > 0) {
-            const relevantTopics = repo.topics.filter(t => 
+            const relevantTopics = repo.topics.filter(t =>
               !['config', 'github-config'].includes(t.toLowerCase())
             );
             if (relevantTopics.length > 0) {
@@ -160,7 +163,7 @@ export const fetchGitHubRepos = async (username = 'MOSW626') => {
           }
           summary = parts.length > 0 ? parts.join(' ') + '입니다.' : `${repo.language || '프로젝트'}입니다.`;
         }
-        
+
         // 최종 설명
         if (!summary || summary.length < 5) {
           summary = `${repo.language || '다양한 언어'}로 개발된 프로젝트입니다.`;
